@@ -97,7 +97,14 @@ export class MemStorage implements IStorage {
 
   async createSnippet(snippet: InsertSnippet): Promise<Snippet> {
     const id = this.currentSnippetId++;
-    const newSnippet: Snippet = { ...snippet, id };
+    const newSnippet = { 
+      ...snippet, 
+      id,
+      // Set default values for new fields if not provided
+      tags: snippet.tags || null,
+      isPremium: snippet.isPremium !== undefined ? snippet.isPremium : false,
+      popularity: snippet.popularity || 0
+    } as Snippet;
     this.snippets.set(id, newSnippet);
     return newSnippet;
   }
@@ -142,6 +149,9 @@ export class MemStorage implements IStorage {
 <link rel="stylesheet" href="https://cdn.shopboost.com/recommendation/v2/app.css">
 <!-- End Product Recommendations App -->`,
       orderIndex: 1,
+      tags: ["Essential", "Setup", "Header"],
+      isPremium: false,
+      popularity: 324,
       previewContent: {
         type: "scriptLoaded",
         content: {
@@ -180,6 +190,9 @@ export class MemStorage implements IStorage {
   });
 </script>`,
       orderIndex: 2,
+      tags: ["Essential", "Product Page", "Template"],
+      isPremium: false,
+      popularity: 287,
       previewContent: {
         type: "productGrid",
         content: {
@@ -238,6 +251,9 @@ export class MemStorage implements IStorage {
   };
 </script>`,
       orderIndex: 3,
+      tags: ["Configuration", "Advanced", "Customization"],
+      isPremium: true,
+      popularity: 176,
       previewContent: {
         type: "config",
         content: {
@@ -284,6 +300,9 @@ export class MemStorage implements IStorage {
   });
 </script>`,
       orderIndex: 4,
+      tags: ["Analytics", "Tracking", "Optional"],
+      isPremium: true,
+      popularity: 142,
       previewContent: {
         type: "analytics",
         content: {
@@ -295,6 +314,96 @@ export class MemStorage implements IStorage {
             { name: "Orders", value: "42", color: "red" }
           ],
           note: "Data is automatically collected and displayed in your app dashboard"
+        }
+      }
+    });
+    
+    // Add a new free snippet
+    await this.createSnippet({
+      categoryId: productCategory.id,
+      title: "5. Simple Product Grid",
+      description: "A simpler implementation for showing related products with minimal styling.",
+      language: "html",
+      code: `<div class="simple-product-recommendations">
+  <h3>You might also like</h3>
+  <div class="product-grid" data-products-count="3">
+    <!-- Products will be inserted here -->
+  </div>
+  
+  <style>
+    .simple-product-recommendations {
+      margin: 30px 0;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 15px;
+    }
+    .product-item {
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 10px;
+      text-align: center;
+    }
+    .product-image {
+      width: 100%;
+      height: auto;
+      border-radius: 3px;
+    }
+    .product-title {
+      margin: 10px 0 5px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .product-price {
+      color: #555;
+      font-size: 14px;
+    }
+  </style>
+  
+  <script>
+    // Basic implementation that doesn't require the full app
+    document.addEventListener('DOMContentLoaded', function() {
+      const productId = document.querySelector('[data-product-id]')?.getAttribute('data-product-id');
+      const count = document.querySelector('.product-grid').getAttribute('data-products-count') || 3;
+      
+      if (productId) {
+        fetch('/recommendations/related.json?product_id=' + productId + '&limit=' + count)
+          .then(response => response.json())
+          .then(data => {
+            const container = document.querySelector('.product-grid');
+            
+            data.products.forEach(product => {
+              const item = document.createElement('div');
+              item.className = 'product-item';
+              item.innerHTML = \`
+                <img src="\${product.featured_image}" alt="\${product.title}" class="product-image">
+                <h4 class="product-title">\${product.title}</h4>
+                <div class="product-price">\${product.price}</div>
+              \`;
+              container.appendChild(item);
+            });
+          })
+          .catch(err => console.error('Error loading recommendations:', err));
+      }
+    });
+  </script>
+</div>`,
+      orderIndex: 5,
+      tags: ["Free", "Simple", "Beginner"],
+      isPremium: false,
+      popularity: 421,
+      previewContent: {
+        type: "productGrid",
+        content: {
+          title: "You might also like",
+          products: [
+            { name: "Basic T-Shirt", price: "$19.99" },
+            { name: "Summer Shorts", price: "$24.99" },
+            { name: "Classic Cap", price: "$15.99" }
+          ]
         }
       }
     });

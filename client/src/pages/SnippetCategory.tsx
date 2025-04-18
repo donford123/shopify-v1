@@ -1,14 +1,31 @@
 import { useParams } from "wouter";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/MainLayout";
 import { TabBar } from "@/components/TabBar";
 import { SnippetCard } from "@/components/ui/snippet-card";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Filter, Tag } from "lucide-react";
 import { Link } from "@/components/ui/link";
 import { ExternalLink } from "lucide-react";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Snippet } from "@shared/schema";
+
+// Define sorting options
+type SortOption = 'popularity' | 'newest' | 'oldest';
 
 export default function SnippetCategory() {
   const { slug } = useParams();
+  const [sortBy, setSortBy] = useState<SortOption>('popularity');
+  const [filterType, setFilterType] = useState<'all' | 'free' | 'premium'>('all');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const { data: category, isLoading: isCategoryLoading } = useQuery({
     queryKey: [`/api/categories/${slug}`],
@@ -17,6 +34,54 @@ export default function SnippetCategory() {
   const { data: snippets = [], isLoading: isSnippetsLoading } = useQuery({
     queryKey: [`/api/categories/${slug}/snippets`],
   });
+  
+  // Extract all unique tags from snippets
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    snippets.forEach((snippet: Snippet) => {
+      if (snippet.tags) {
+        snippet.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    return Array.from(tagSet);
+  }, [snippets]);
+  
+  // Toggle tag selection
+  const toggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+  
+  // Filter and sort snippets
+  const filteredAndSortedSnippets = useMemo(() => {
+    return [...snippets]
+      .filter((snippet: Snippet) => {
+        // Filter by premium/free
+        if (filterType === 'free' && snippet.isPremium) return false;
+        if (filterType === 'premium' && !snippet.isPremium) return false;
+        
+        // Filter by selected tags (if any are selected)
+        if (selectedTags.length > 0) {
+          return snippet.tags && snippet.tags.some(tag => selectedTags.includes(tag));
+        }
+        
+        return true;
+      })
+      .sort((a: Snippet, b: Snippet) => {
+        switch (sortBy) {
+          case 'newest':
+            return b.orderIndex - a.orderIndex;
+          case 'oldest':
+            return a.orderIndex - b.orderIndex;
+          case 'popularity':
+          default:
+            return (b.popularity || 0) - (a.popularity || 0);
+        }
+      });
+  }, [snippets, sortBy, filterType, selectedTags]);
 
   return (
     <MainLayout selectedCategory={category?.name}>

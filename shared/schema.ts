@@ -36,6 +36,9 @@ export const snippets = pgTable("snippets", {
   code: text("code").notNull(),
   orderIndex: integer("order_index").notNull(),
   previewContent: jsonb("preview_content"),
+  tags: text("tags").array(),
+  isPremium: boolean("is_premium").default(false),
+  popularity: integer("popularity").default(0),
 });
 
 export const insertSnippetSchema = createInsertSchema(snippets).pick({
@@ -46,6 +49,9 @@ export const insertSnippetSchema = createInsertSchema(snippets).pick({
   code: true,
   orderIndex: true,
   previewContent: true,
+  tags: true,
+  isPremium: true,
+  popularity: true,
 });
 
 // Types
