@@ -27,11 +27,16 @@ export default function SnippetCategory() {
   const [filterType, setFilterType] = useState<'all' | 'free' | 'premium'>('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  const { data: category, isLoading: isCategoryLoading } = useQuery({
+  const { data: category, isLoading: isCategoryLoading } = useQuery<{
+    id: number;
+    name: string;
+    icon: string;
+    slug: string;
+  }>({
     queryKey: [`/api/categories/${slug}`],
   });
 
-  const { data: snippets = [], isLoading: isSnippetsLoading } = useQuery({
+  const { data: snippets = [], isLoading: isSnippetsLoading } = useQuery<Snippet[]>({
     queryKey: [`/api/categories/${slug}/snippets`],
   });
   
@@ -126,10 +131,97 @@ export default function SnippetCategory() {
                     "Improve your store's user interface with these UI component snippets. Copy and paste them into your theme."}
                 </p>
               </div>
-
-              {snippets.map((snippet) => (
-                <SnippetCard key={snippet.id} snippet={snippet} />
-              ))}
+              
+              {/* Filter and sort controls */}
+              <div className="bg-white border border-[#e5e5e5] rounded-lg p-4 mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm font-medium">Filter & Sort:</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3 items-center">
+                    {/* Sort dropdown */}
+                    <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                      <SelectTrigger className="w-[180px] h-9">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="popularity">Most Used</SelectItem>
+                        <SelectItem value="newest">New to Old</SelectItem>
+                        <SelectItem value="oldest">Old to New</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Filter buttons */}
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="sm"
+                        variant={filterType === 'all' ? 'default' : 'outline'}
+                        onClick={() => setFilterType('all')}
+                        className="h-9"
+                      >
+                        All
+                      </Button>
+                      <Button 
+                        size="sm"
+                        variant={filterType === 'free' ? 'default' : 'outline'}
+                        onClick={() => setFilterType('free')}
+                        className="h-9"
+                      >
+                        Free
+                      </Button>
+                      <Button 
+                        size="sm"
+                        variant={filterType === 'premium' ? 'default' : 'outline'}
+                        onClick={() => setFilterType('premium')}
+                        className="h-9"
+                      >
+                        Premium
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Tags */}
+                {allTags.length > 0 && (
+                  <div className="mt-4 flex items-start gap-2">
+                    <Tag className="h-4 w-4 text-gray-500 mt-1" />
+                    <div className="flex flex-wrap gap-2">
+                      {allTags.map(tag => (
+                        <Badge 
+                          key={tag}
+                          variant={selectedTags.includes(tag) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => toggleTag(tag)}
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {filteredAndSortedSnippets.length === 0 ? (
+                <div className="text-center p-10 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-gray-600 mb-2">No snippets match your current filters.</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setFilterType('all');
+                      setSelectedTags([]);
+                      setSortBy('popularity');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              ) : (
+                filteredAndSortedSnippets.map((snippet: Snippet) => (
+                  <SnippetCard key={snippet.id} snippet={snippet} />
+                ))
+              )}
 
               <div className="bg-blue-50 rounded-lg p-6 border border-blue-100">
                 <h2 className="text-lg font-medium text-blue-800 mb-2">Next Steps</h2>

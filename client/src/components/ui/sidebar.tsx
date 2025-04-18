@@ -16,34 +16,35 @@ interface SidebarItemProps {
 
 function SidebarItem({ icon, label, href, isActive, onClick }: SidebarItemProps) {
   return (
-    <Link href={href}>
-      <a 
-        className={cn(
-          "flex items-center px-3 py-2 rounded-md text-sm font-medium",
-          "transition-colors duration-200 ease-in-out",
-          isActive 
-            ? "bg-[#eae9e5] text-[#37352f]" 
-            : "text-gray-700 hover:bg-[#eae9e5]"
-        )}
-        onClick={onClick}
+    <div
+      className={cn(
+        "flex items-center px-3 py-2 rounded-md text-sm font-medium",
+        "transition-colors duration-200 ease-in-out cursor-pointer",
+        isActive 
+          ? "bg-[#eae9e5] text-[#37352f]" 
+          : "text-gray-700 hover:bg-[#eae9e5]"
+      )}
+      onClick={() => {
+        if (onClick) onClick();
+        window.location.href = href;
+      }}
+    >
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        className="h-4 w-4 mr-2" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
       >
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          className="h-4 w-4 mr-2" 
-          fill="none" 
-          viewBox="0 0 24 24" 
-          stroke="currentColor"
-        >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth="2" 
-            d={icon} 
-          />
-        </svg>
-        {label}
-      </a>
-    </Link>
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth="2" 
+          d={icon} 
+        />
+      </svg>
+      {label}
+    </div>
   );
 }
 
@@ -100,15 +101,15 @@ export function Sidebar({ categories, isLoading, closeMobileSidebar }: SidebarPr
           
           <SidebarItem
             icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            label="Product Upsell App"
-            href="#"
+            label="Simple Product Grid"
+            href="/category/product"
             onClick={isMobile ? closeMobileSidebar : undefined}
           />
           
           <SidebarItem
             icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            label="Reviews Widget"
-            href="#"
+            label="Analytics Integration"
+            href="/category/product"
             onClick={isMobile ? closeMobileSidebar : undefined}
           />
         </div>
