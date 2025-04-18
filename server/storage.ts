@@ -3,6 +3,8 @@ import {
   snippetCategories, type SnippetCategory, type InsertSnippetCategory,
   snippets, type Snippet, type InsertSnippet
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -22,67 +24,54 @@ export interface IStorage {
   createSnippet(snippet: InsertSnippet): Promise<Snippet>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private snippetCategories: Map<number, SnippetCategory>;
-  private snippets: Map<number, Snippet>;
-  private currentUserId: number;
-  private currentCategoryId: number;
-  private currentSnippetId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.snippetCategories = new Map();
-    this.snippets = new Map();
-    this.currentUserId = 1;
-    this.currentCategoryId = 1;
-    this.currentSnippetId = 1;
-
-    // Initialize with default data
-    this.initializeDefaultData();
-  }
-
+export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
   }
 
   // Snippet category operations
   async getSnippetCategories(): Promise<SnippetCategory[]> {
-    return Array.from(this.snippetCategories.values());
+    return await db.select().from(snippetCategories);
   }
 
   async getSnippetCategoryBySlug(slug: string): Promise<SnippetCategory | undefined> {
-    return Array.from(this.snippetCategories.values()).find(
-      (category) => category.slug === slug
-    );
+    const [category] = await db
+      .select()
+      .from(snippetCategories)
+      .where(eq(snippetCategories.slug, slug));
+    return category || undefined;
   }
 
   async createSnippetCategory(category: InsertSnippetCategory): Promise<SnippetCategory> {
-    const id = this.currentCategoryId++;
-    const newCategory: SnippetCategory = { ...category, id };
-    this.snippetCategories.set(id, newCategory);
+    const [newCategory] = await db
+      .insert(snippetCategories)
+      .values(category)
+      .returning();
     return newCategory;
   }
 
   // Snippet operations
   async getSnippetsByCategoryId(categoryId: number): Promise<Snippet[]> {
-    return Array.from(this.snippets.values())
-      .filter(snippet => snippet.categoryId === categoryId)
-      .sort((a, b) => a.orderIndex - b.orderIndex);
+    return await db
+      .select()
+      .from(snippets)
+      .where(eq(snippets.categoryId, categoryId))
+      .orderBy(snippets.orderIndex);
   }
 
   async getSnippetsByCategorySlug(slug: string): Promise<Snippet[]> {
@@ -92,86 +81,93 @@ export class MemStorage implements IStorage {
   }
 
   async getSnippet(id: number): Promise<Snippet | undefined> {
-    return this.snippets.get(id);
+    const [snippet] = await db
+      .select()
+      .from(snippets)
+      .where(eq(snippets.id, id));
+    return snippet || undefined;
   }
 
   async createSnippet(snippet: InsertSnippet): Promise<Snippet> {
-    const id = this.currentSnippetId++;
-    const newSnippet = { 
-      ...snippet, 
-      id,
-      // Set default values for new fields if not provided
-      tags: snippet.tags || null,
-      isPremium: snippet.isPremium !== undefined ? snippet.isPremium : false,
-      popularity: snippet.popularity || 0
-    } as Snippet;
-    this.snippets.set(id, newSnippet);
+    const [newSnippet] = await db
+      .insert(snippets)
+      .values({
+        ...snippet,
+        // Set default values for new fields if not provided
+        tags: snippet.tags || undefined,
+        isPremium: snippet.isPremium !== undefined ? snippet.isPremium : false,
+        popularity: snippet.popularity || 0
+      })
+      .returning();
     return newSnippet;
   }
 
-  // Initialize with sample data
-  private async initializeDefaultData() {
-    // Create categories
-    const productCategory = await this.createSnippetCategory({
-      name: "Product App Snippets",
-      icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-      slug: "product"
-    });
+  // Initialize with sample data if needed
+  async initializeDefaultData() {
+    const categoriesCount = await db.select().from(snippetCategories).then(rows => rows.length);
+    
+    if (categoriesCount === 0) {
+      // Create categories
+      const productCategory = await this.createSnippetCategory({
+        name: "Product App Snippets",
+        icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+        slug: "product"
+      });
 
-    const paymentCategory = await this.createSnippetCategory({
-      name: "Payment App Snippets",
-      icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
-      slug: "payment"
-    });
+      const paymentCategory = await this.createSnippetCategory({
+        name: "Payment App Snippets",
+        icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
+        slug: "payment"
+      });
 
-    const cartCategory = await this.createSnippetCategory({
-      name: "Cart App Snippets",
-      icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-      slug: "cart"
-    });
+      const cartCategory = await this.createSnippetCategory({
+        name: "Cart App Snippets",
+        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        slug: "cart"
+      });
 
-    const uiCategory = await this.createSnippetCategory({
-      name: "UI App Snippets",
-      icon: "M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z",
-      slug: "ui"
-    });
+      const uiCategory = await this.createSnippetCategory({
+        name: "UI App Snippets",
+        icon: "M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z",
+        slug: "ui"
+      });
 
-    // Create snippets for Product category
-    await this.createSnippet({
-      categoryId: productCategory.id,
-      title: "1. Theme.liquid Header",
-      description: "Add this snippet to your theme.liquid file inside the <head> tag to load the app's necessary scripts.",
-      language: "html",
-      code: `<!-- Product Recommendations App by ShopBoost -->
+      // Create snippets for Product category
+      await this.createSnippet({
+        categoryId: productCategory.id,
+        title: "1. Theme.liquid Header",
+        description: "Add this snippet to your theme.liquid file inside the <head> tag to load the app's necessary scripts.",
+        language: "html",
+        code: `<!-- Product Recommendations App by ShopBoost -->
 <script src="https://cdn.shopboost.com/recommendation/v2/app.js" 
   data-shop="{{ shop.permanent_domain }}"
   data-api-key="YOUR_API_KEY"></script>
 <link rel="stylesheet" href="https://cdn.shopboost.com/recommendation/v2/app.css">
 <!-- End Product Recommendations App -->`,
-      orderIndex: 1,
-      tags: ["Essential", "Setup", "Header"],
-      isPremium: false,
-      popularity: 324,
-      previewContent: {
-        type: "scriptLoaded",
-        content: {
-          status: "success",
-          message: "Script successfully loaded",
-          console: [
-            { type: "log", text: "ShopBoost Recommendations initialized" },
-            { type: "info", text: "API Connected to shop-domain.myshopify.com" }
-          ],
-          note: "The script automatically initializes and connects to your Shopify store using your API key."
+        orderIndex: 1,
+        tags: ["Essential", "Setup", "Header"],
+        isPremium: false,
+        popularity: 324,
+        previewContent: {
+          type: "scriptLoaded",
+          content: {
+            status: "success",
+            message: "Script successfully loaded",
+            console: [
+              { type: "log", text: "ShopBoost Recommendations initialized" },
+              { type: "info", text: "API Connected to shop-domain.myshopify.com" }
+            ],
+            note: "The script automatically initializes and connects to your Shopify store using your API key."
+          }
         }
-      }
-    });
+      });
 
-    await this.createSnippet({
-      categoryId: productCategory.id,
-      title: "2. Product Template",
-      description: "Add this code to your product template to display recommendations based on the current product.",
-      language: "html",
-      code: `<div class="product-recommendations"
+      await this.createSnippet({
+        categoryId: productCategory.id,
+        title: "2. Product Template",
+        description: "Add this code to your product template to display recommendations based on the current product.",
+        language: "html",
+        code: `<div class="product-recommendations"
   data-product-id="{{ product.id }}"
   data-limit="4"
   data-recommendation-type="related"
@@ -189,30 +185,30 @@ export class MemStorage implements IStorage {
     }
   });
 </script>`,
-      orderIndex: 2,
-      tags: ["Essential", "Product Page", "Template"],
-      isPremium: false,
-      popularity: 287,
-      previewContent: {
-        type: "productGrid",
-        content: {
-          title: "You may also like",
-          products: [
-            { name: "Product Name", price: "$19.99" },
-            { name: "Similar Product", price: "$24.99" },
-            { name: "Another Item", price: "$15.99" },
-            { name: "Final Suggestion", price: "$29.99" }
-          ]
+        orderIndex: 2,
+        tags: ["Essential", "Product Page", "Template"],
+        isPremium: false,
+        popularity: 287,
+        previewContent: {
+          type: "productGrid",
+          content: {
+            title: "You may also like",
+            products: [
+              { name: "Product Name", price: "$19.99" },
+              { name: "Similar Product", price: "$24.99" },
+              { name: "Another Item", price: "$15.99" },
+              { name: "Final Suggestion", price: "$29.99" }
+            ]
+          }
         }
-      }
-    });
+      });
 
-    await this.createSnippet({
-      categoryId: productCategory.id,
-      title: "3. App Customization",
-      description: "Configure the recommendation app's appearance and behavior with these settings.",
-      language: "javascript",
-      code: `// Place this code after the app's script tag in theme.liquid
+      await this.createSnippet({
+        categoryId: productCategory.id,
+        title: "3. App Customization",
+        description: "Configure the recommendation app's appearance and behavior with these settings.",
+        language: "javascript",
+        code: `// Place this code after the app's script tag in theme.liquid
 <script>
   window.ShopBoostConfig = {
     // Styling options
@@ -250,31 +246,31 @@ export class MemStorage implements IStorage {
     }
   };
 </script>`,
-      orderIndex: 3,
-      tags: ["Configuration", "Advanced", "Customization"],
-      isPremium: true,
-      popularity: 176,
-      previewContent: {
-        type: "config",
-        content: {
-          accentColor: "#3b82f6",
-          theme: "light",
-          placements: [
-            { name: "Product Pages", enabled: true },
-            { name: "Cart Page", enabled: true },
-            { name: "Homepage", enabled: false }
-          ],
-          validation: "Configuration validated"
+        orderIndex: 3,
+        tags: ["Configuration", "Advanced", "Customization"],
+        isPremium: true,
+        popularity: 176,
+        previewContent: {
+          type: "config",
+          content: {
+            accentColor: "#3b82f6",
+            theme: "light",
+            placements: [
+              { name: "Product Pages", enabled: true },
+              { name: "Cart Page", enabled: true },
+              { name: "Homepage", enabled: false }
+            ],
+            validation: "Configuration validated"
+          }
         }
-      }
-    });
+      });
 
-    await this.createSnippet({
-      categoryId: productCategory.id,
-      title: "4. Analytics Integration",
-      description: "Optional: Add this code to track conversion data from recommendations.",
-      language: "javascript",
-      code: `<script>
+      await this.createSnippet({
+        categoryId: productCategory.id,
+        title: "4. Analytics Integration",
+        description: "Optional: Add this code to track conversion data from recommendations.",
+        language: "javascript",
+        code: `<script>
   // Place in cart.liquid or add-to-cart function
   document.addEventListener('DOMContentLoaded', function() {
     // Track when products are added to cart
@@ -299,32 +295,32 @@ export class MemStorage implements IStorage {
     }
   });
 </script>`,
-      orderIndex: 4,
-      tags: ["Analytics", "Tracking", "Optional"],
-      isPremium: true,
-      popularity: 142,
-      previewContent: {
-        type: "analytics",
-        content: {
-          conversionRate: "12.4%",
-          metrics: [
-            { name: "Views", value: "1,245", color: "blue" },
-            { name: "Clicks", value: "354", color: "green" },
-            { name: "Carts", value: "86", color: "yellow" },
-            { name: "Orders", value: "42", color: "red" }
-          ],
-          note: "Data is automatically collected and displayed in your app dashboard"
+        orderIndex: 4,
+        tags: ["Analytics", "Tracking", "Optional"],
+        isPremium: true,
+        popularity: 142,
+        previewContent: {
+          type: "analytics",
+          content: {
+            conversionRate: "12.4%",
+            metrics: [
+              { name: "Views", value: "1,245", color: "blue" },
+              { name: "Clicks", value: "354", color: "green" },
+              { name: "Carts", value: "86", color: "yellow" },
+              { name: "Orders", value: "42", color: "red" }
+            ],
+            note: "Data is automatically collected and displayed in your app dashboard"
+          }
         }
-      }
-    });
-    
-    // Add a new free snippet
-    await this.createSnippet({
-      categoryId: productCategory.id,
-      title: "5. Simple Product Grid",
-      description: "A simpler implementation for showing related products with minimal styling.",
-      language: "html",
-      code: `<div class="simple-product-recommendations">
+      });
+      
+      // Add a new free snippet
+      await this.createSnippet({
+        categoryId: productCategory.id,
+        title: "5. Simple Product Grid",
+        description: "A simpler implementation for showing related products with minimal styling.",
+        language: "html",
+        code: `<div class="simple-product-recommendations">
   <h3>You might also like</h3>
   <div class="product-grid" data-products-count="3">
     <!-- Products will be inserted here -->
@@ -391,23 +387,35 @@ export class MemStorage implements IStorage {
     });
   </script>
 </div>`,
-      orderIndex: 5,
-      tags: ["Free", "Simple", "Beginner"],
-      isPremium: false,
-      popularity: 421,
-      previewContent: {
-        type: "productGrid",
-        content: {
-          title: "You might also like",
-          products: [
-            { name: "Basic T-Shirt", price: "$19.99" },
-            { name: "Summer Shorts", price: "$24.99" },
-            { name: "Classic Cap", price: "$15.99" }
-          ]
+        orderIndex: 5,
+        tags: ["Free", "Simple", "Beginner"],
+        isPremium: false,
+        popularity: 421,
+        previewContent: {
+          type: "productGrid",
+          content: {
+            title: "You might also like",
+            products: [
+              { name: "Basic T-Shirt", price: "$19.99" },
+              { name: "Summer Shorts", price: "$24.99" },
+              { name: "Classic Cap", price: "$15.99" }
+            ]
+          }
         }
-      }
-    });
+      });
+    }
   }
 }
 
-export const storage = new MemStorage();
+// Create and export storage instance
+export const storage = new DatabaseStorage();
+
+// Initialize data
+(async () => {
+  try {
+    await (storage as DatabaseStorage).initializeDefaultData();
+    console.log("Database initialized successfully");
+  } catch (error) {
+    console.error("Error initializing database:", error);
+  }
+})();
