@@ -103,5 +103,9 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "devDependencies": {
+    "vite": "^4.5.1"
   }
 }
+
